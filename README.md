@@ -1,4 +1,4 @@
-# claude-agent
+# Claude CLI Agent
 
 Production-grade, non-interactive CLI wrapper for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) in Docker containers. One command to install, one command to run. Features an autonomous **cowork** mode that plans, executes, verifies, and self-heals.
 
