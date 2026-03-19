@@ -1,0 +1,66 @@
+version: "3.8"
+
+services:
+  # ── Default: run any command ──────────────────────────────────
+  claude-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_AGENT_MODEL=${CLAUDE_AGENT_MODEL:-sonnet}
+      - CLAUDE_AGENT_SKIP_PERMISSIONS=true
+    volumes:
+      - ${PROJECT_DIR:-.}/workspace:/workspace
+      - claude-sessions:/root/.config/claude-agent/sessions
+      - claude-data:/root/.claude
+    working_dir: /workspace
+    privileged: true
+    # Example: docker compose run claude-agent run "fix bugs"
+    # Example: docker compose run claude-agent cowork -f /workspace/prompt.md
+
+  # ── Cowork: plan-execute-verify loop ──────────────────────────
+  cowork:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_AGENT_MODEL=${CLAUDE_AGENT_MODEL:-sonnet}
+      - CLAUDE_AGENT_SKIP_PERMISSIONS=true
+      - CLAUDE_AGENT_COWORK_RETRIES=${CLAUDE_AGENT_COWORK_RETRIES:-3}
+    volumes:
+      - ${PROJECT_DIR:-.}/workspace:/workspace
+      - claude-sessions:/root/.config/claude-agent/sessions
+      - claude-data:/root/.claude
+    working_dir: /workspace
+    privileged: true
+    entrypoint: ["claude-agent", "cowork"]
+    # Example: docker compose run cowork -f /workspace/prompt.md
+    # Example: docker compose run cowork "build a REST API with tests"
+
+  # ── Dev: long-running container for multiple tasks ────────────
+  dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_AGENT_MODEL=${CLAUDE_AGENT_MODEL:-sonnet}
+      - CLAUDE_AGENT_SKIP_PERMISSIONS=true
+    volumes:
+      - ${PROJECT_DIR:-.}/workspace:/workspace
+      - claude-sessions:/root/.config/claude-agent/sessions
+      - claude-data:/root/.claude
+    working_dir: /workspace
+    privileged: true
+    entrypoint: ["tail", "-f", "/dev/null"]
+    # Usage:
+    #   docker compose up -d dev
+    #   docker compose exec dev claude-agent cowork -f /workspace/prompt.md
+    #   docker compose exec dev claude-agent run "add tests"
+    #   docker compose down dev
+
+volumes:
+  claude-sessions:
+  claude-data:

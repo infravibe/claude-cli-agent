@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+# claude-agent v2.0 - Non-interactive Claude Code for Docker containers
+# Wraps `claude -p` with config management, session persistence, and cowork workflow.
+set -euo pipefail
+
+# Resolve script directory (works with symlinks)
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
+
+# Source library modules
+source "$SCRIPT_DIR/lib/core.sh"
+source "$SCRIPT_DIR/lib/config.sh"
+source "$SCRIPT_DIR/lib/session.sh"
+source "$SCRIPT_DIR/lib/claude.sh"
+
+# Source command modules
+source "$SCRIPT_DIR/commands/run.sh"
+source "$SCRIPT_DIR/commands/chat.sh"
+source "$SCRIPT_DIR/commands/session.sh"
+source "$SCRIPT_DIR/commands/config.sh"
+source "$SCRIPT_DIR/commands/version.sh"
+source "$SCRIPT_DIR/commands/cowork.sh"
+
+# ── Global flag parser ────────────────────────────────────────────
+parse_global_flags() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            # Model
+            --model)                    CFG_MODEL="$2"; shift 2 ;;
+            --effort)                   CFG_EFFORT="$2"; shift 2 ;;
+            --fallback-model)           CFG_FALLBACK_MODEL="$2"; shift 2 ;;
+
+            # Output
+            --output)                   CFG_OUTPUT="$2"; shift 2 ;;
+            --json-schema)              CFG_JSON_SCHEMA="$2"; shift 2 ;;
+            --input-format)             CFG_INPUT_FORMAT="$2"; shift 2 ;;
+
+            # Tools & permissions
+            --tools)                    CFG_TOOLS="$2"; shift 2 ;;
+            --disallowed-tools)         CFG_DISALLOWED_TOOLS="$2"; shift 2 ;;
+            --no-skip-permissions)      CFG_SKIP_PERMISSIONS="false"; shift ;;
+            --permission-mode)          CFG_PERMISSION_MODE="$2"; shift 2 ;;
+
+            # Execution limits
+            --max-turns)                CFG_MAX_TURNS="$2"; shift 2 ;;
+            --max-budget)               CFG_MAX_BUDGET_USD="$2"; shift 2 ;;
+            --timeout)                  CFG_TIMEOUT="$2"; shift 2 ;;
+
+            # System prompt
+            --system-prompt)            CFG_SYSTEM_PROMPT="$2"; shift 2 ;;
+            --system-prompt-file)       CFG_SYSTEM_PROMPT_FILE="$2"; shift 2 ;;
+            --append-system-prompt)     CFG_APPEND_SYSTEM_PROMPT="$2"; shift 2 ;;
+            --append-system-prompt-file) CFG_APPEND_SYSTEM_PROMPT_FILE="$2"; shift 2 ;;
+
+            # Working directory
+            --workdir|-w)               CFG_WORKDIR="$2"; shift 2 ;;
+            --add-dir)                  CFG_ADD_DIRS="${CFG_ADD_DIRS:+$CFG_ADD_DIRS,}$2"; shift 2 ;;
+
+            # Session
+            --continue)                 CFG_CONTINUE="true"; shift ;;
+            --resume)                   CFG_RESUME="$2"; shift 2 ;;
+            --session-id)               CFG_SESSION_ID="$2"; shift 2 ;;
+            --name|-n)                  CFG_SESSION_NAME="$2"; shift 2 ;;
+            --fork-session)             CFG_FORK_SESSION="true"; shift ;;
+            --no-session-persistence)   CFG_NO_SESSION_PERSISTENCE="true"; shift ;;
+
+            # Auth
+            --api-key)
+                CFG_API_KEY="$2"
+                export ANTHROPIC_API_KEY="$2"
+                shift 2
+                ;;
+
+            # MCP & settings
+            --mcp-config)               CFG_MCP_CONFIG="$2"; shift 2 ;;
+            --settings)                 CFG_SETTINGS="$2"; shift 2 ;;
+
+            # Debug
+            -v|--verbose)               CFG_VERBOSE="true"; shift ;;
+            --debug)                    CFG_DEBUG="$2"; shift 2 ;;
+
+            # Help/version
+            -h|--help)                  show_help; exit 0 ;;
+            -V|--version)              cmd_version; exit 0 ;;
+
+            # Stop parsing globals
+            --)                         shift; REMAINING_ARGS=("$@"); return ;;
+            -*)                         REMAINING_ARGS=("$@"); return ;;
+            *)                          REMAINING_ARGS=("$@"); return ;;
+        esac
+    done
+    REMAINING_ARGS=()
+}
+
+show_help() {
+    cat <<EOF
+${BOLD}claude-agent${RESET} v${CLAUDE_AGENT_VERSION} - Non-interactive Claude Code for Docker containers
+
+${BOLD}USAGE${RESET}
+  claude-agent [OPTIONS] <COMMAND> [ARGS...]
+
+${BOLD}COMMANDS${RESET}
+  run <prompt>          Execute a one-shot task
+  cowork <prompt>       Autonomous plan → execute → verify → retry loop
+  chat <prompt>         Multi-turn conversation with sessions
+  session <subcmd>      Manage sessions (list, show, delete)
+  config <subcmd>       View/set configuration (show, set, path)
+  version               Show version info
+
+${BOLD}MODEL OPTIONS${RESET}
+  --model <MODEL>       Model: sonnet, opus, haiku, or full name
+  --effort <LEVEL>      Reasoning depth: low, medium, high, max
+  --fallback-model <M>  Fallback when primary is overloaded
+
+${BOLD}OUTPUT OPTIONS${RESET}
+  --output <FORMAT>     Output: text (default), json, stream-json
+  --json-schema <JSON>  Validate JSON output against schema
+  --input-format <FMT>  Input format: text, stream-json
+
+${BOLD}TOOL & PERMISSION OPTIONS${RESET}
+  --tools <TOOLS>       Comma-separated allowed tools (Bash,Read,Edit,...)
+  --disallowed-tools    Comma-separated disallowed tools
+  --no-skip-permissions Enable permission prompts (default: skip in Docker)
+  --permission-mode <M> Mode: default, acceptEdits, plan, bypassPermissions
+
+${BOLD}EXECUTION OPTIONS${RESET}
+  --max-turns <N>       Max agentic turns
+  --max-budget <USD>    Max cost in USD before stopping
+  --timeout <SECS>      Timeout in seconds
+
+${BOLD}SYSTEM PROMPT OPTIONS${RESET}
+  --system-prompt <P>   Replace system prompt with text
+  --system-prompt-file  Replace system prompt from file
+  --append-system-prompt <P>  Append to default system prompt
+  --append-system-prompt-file Append from file
+
+${BOLD}SESSION OPTIONS${RESET}
+  --continue            Continue last conversation
+  --resume <ID>         Resume specific session (ID or name)
+  --session-id <UUID>   Use specific session UUID
+  --name, -n <NAME>     Name for the session
+  --fork-session        Fork when resuming (new session ID)
+  --no-session-persistence  Don't save session to disk
+
+${BOLD}OTHER OPTIONS${RESET}
+  --workdir, -w <DIR>   Working directory for Claude
+  --add-dir <DIR>       Additional directories (repeatable)
+  --api-key <KEY>       Anthropic API key
+  --mcp-config <PATH>   MCP server config file or JSON
+  --settings <PATH>     Additional settings file or JSON
+  -v, --verbose         Verbose output
+  --debug <CATEGORIES>  Debug mode (e.g., "api,hooks")
+  -h, --help            Show this help
+  -V, --version         Show version
+
+${BOLD}ENVIRONMENT${RESET}
+  ANTHROPIC_API_KEY             API key (required)
+  CLAUDE_AGENT_MODEL            Default model
+  CLAUDE_AGENT_EFFORT           Default effort level
+  CLAUDE_AGENT_OUTPUT           Default output format
+  CLAUDE_AGENT_MAX_TURNS        Default max turns
+  CLAUDE_AGENT_MAX_BUDGET_USD   Default max budget
+  CLAUDE_AGENT_TIMEOUT          Default timeout (seconds)
+  CLAUDE_AGENT_COWORK_RETRIES   Cowork max retries (default: 3)
+  CLAUDE_AGENT_SKIP_PERMISSIONS Skip permissions (default: true)
+  CLAUDE_AGENT_WORKDIR          Default working directory
+
+${BOLD}EXAMPLES${RESET}
+  claude-agent run "fix the bug in main.py"
+  claude-agent --model opus --effort high run "refactor auth"
+  claude-agent --output json run "list functions" | jq '.result'
+  claude-agent cowork -f prompt.md
+  claude-agent --max-budget 5.00 cowork "build REST API with tests"
+  git diff | claude-agent run "review this diff"
+  docker run -e ANTHROPIC_API_KEY -v \$(pwd):/workspace claude-agent cowork -f /workspace/task.md
+EOF
+}
+
+main() {
+    load_config
+
+    REMAINING_ARGS=()
+    parse_global_flags "$@"
+    set -- "${REMAINING_ARGS[@]}"
+
+    local cmd="${1:-}"
+    shift || true
+
+    case "$cmd" in
+        run|r)          cmd_run "$@" ;;
+        cowork|cw)      cmd_cowork "$@" ;;
+        chat|c)         cmd_chat "$@" ;;
+        session|s)      cmd_session "$@" ;;
+        config|cfg)     cmd_config "$@" ;;
+        version|v)      cmd_version ;;
+        help|--help|-h|"") show_help ;;
+        *)              cmd_run "$cmd" "$@" ;;  # bare prompt → run
+    esac
+}
+
+main "$@"

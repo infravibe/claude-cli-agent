@@ -1,0 +1,19 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (may contain API keys)
+*.env
+!config.env.example
+
+# Sessions
+sessions/
+
+# Node (if local dev)
+node_modules/
