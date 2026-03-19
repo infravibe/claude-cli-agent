@@ -17,3 +17,5 @@ sessions/
 
 # Node (if local dev)
 node_modules/
+
+/workspace

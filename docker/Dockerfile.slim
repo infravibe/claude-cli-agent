@@ -1,10 +1,10 @@
 # Slim variant - node base, smaller image, faster build
 FROM node:20-slim
 
-USER root
 ENV DEBIAN_FRONTEND=noninteractive
-ENV HOME=/root
 ENV LANG=C.UTF-8
+
+USER root
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
@@ -22,9 +22,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN npm install -g @anthropic-ai/claude-code
 
-RUN mkdir -p /root/.claude && \
+# Non-root user with sudo (Claude Code blocks --dangerously-skip-permissions under root)
+RUN useradd -m -s /bin/bash -G sudo claude && \
+    echo "claude ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/claude && \
+    chmod 0440 /etc/sudoers.d/claude
+
+RUN mkdir -p /home/claude/.claude && \
     echo '{"hasCompletedOnboarding":true,"hasAcknowledgedCostThreshold":true}' \
-    > /root/.claude/settings.json
+    > /home/claude/.claude/settings.json && \
+    echo '{}' > /home/claude/.claude.json && \
+    chown -R claude:claude /home/claude/.claude /home/claude/.claude.json
 
 COPY claude-agent /usr/local/lib/claude-agent/claude-agent
 COPY lib/ /usr/local/lib/claude-agent/lib/
@@ -32,12 +39,19 @@ COPY commands/ /usr/local/lib/claude-agent/commands/
 RUN chmod +x /usr/local/lib/claude-agent/claude-agent \
     && ln -sf /usr/local/lib/claude-agent/claude-agent /usr/local/bin/claude-agent
 
+RUN mkdir -p /workspace && chown claude:claude /workspace && \
+    mkdir -p /home/claude/.config/claude-agent/sessions && \
+    chown -R claude:claude /home/claude/.config
+
+USER claude
+ENV HOME=/home/claude
 ENV CLAUDE_AGENT_SKIP_PERMISSIONS=true
 ENV CLAUDE_AGENT_WORKDIR=/workspace
+
+WORKDIR /workspace
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD claude-agent version > /dev/null 2>&1
 
-WORKDIR /workspace
 ENTRYPOINT ["claude-agent"]
 CMD ["--help"]

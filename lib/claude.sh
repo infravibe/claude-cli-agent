@@ -18,91 +18,129 @@ _claude_build_cmd() {
 
     CLAUDE_CMD=(claude -p "$prompt")
 
+    # NOTE: Every conditional that adds to CLAUDE_CMD must use if/then/fi form.
+    # The [[ ]] && pattern is UNSAFE under set -e: when the condition is false,
+    # the whole line returns exit code 1 and set -e kills the script.
+
     # ── Permissions ────────────────────────────────────────────
     if [[ "$CFG_SKIP_PERMISSIONS" == "true" ]]; then
         CLAUDE_CMD+=(--dangerously-skip-permissions)
     fi
-
     if [[ -n "${CFG_PERMISSION_MODE:-}" ]]; then
         CLAUDE_CMD+=(--permission-mode "$CFG_PERMISSION_MODE")
     fi
 
     # ── Model ──────────────────────────────────────────────────
-    [[ -n "${CFG_MODEL:-}" ]]          && CLAUDE_CMD+=(--model "$CFG_MODEL")
-    [[ -n "${CFG_EFFORT:-}" ]]         && CLAUDE_CMD+=(--effort "$CFG_EFFORT")
-    [[ -n "${CFG_FALLBACK_MODEL:-}" ]] && CLAUDE_CMD+=(--fallback-model "$CFG_FALLBACK_MODEL")
+    if [[ -n "${CFG_MODEL:-}" ]]; then
+        CLAUDE_CMD+=(--model "$CFG_MODEL")
+    fi
+    if [[ -n "${CFG_EFFORT:-}" ]]; then
+        CLAUDE_CMD+=(--effort "$CFG_EFFORT")
+    fi
+    if [[ -n "${CFG_FALLBACK_MODEL:-}" ]]; then
+        CLAUDE_CMD+=(--fallback-model "$CFG_FALLBACK_MODEL")
+    fi
 
     # ── Output ─────────────────────────────────────────────────
     if [[ -n "${CFG_OUTPUT:-}" && "$CFG_OUTPUT" != "text" ]]; then
         CLAUDE_CMD+=(--output-format "$CFG_OUTPUT")
     fi
-
-    [[ -n "${CFG_JSON_SCHEMA:-}" ]] && CLAUDE_CMD+=(--json-schema "$CFG_JSON_SCHEMA")
-    [[ -n "${CFG_INPUT_FORMAT:-}" ]] && CLAUDE_CMD+=(--input-format "$CFG_INPUT_FORMAT")
+    if [[ -n "${CFG_JSON_SCHEMA:-}" ]]; then
+        CLAUDE_CMD+=(--json-schema "$CFG_JSON_SCHEMA")
+    fi
+    if [[ -n "${CFG_INPUT_FORMAT:-}" ]]; then
+        CLAUDE_CMD+=(--input-format "$CFG_INPUT_FORMAT")
+    fi
 
     # ── Tools ──────────────────────────────────────────────────
     if [[ -n "${CFG_TOOLS:-}" ]]; then
         IFS=',' read -ra tools <<< "$CFG_TOOLS"
         for tool in "${tools[@]}"; do
-            tool=$(echo "$tool" | xargs)  # trim whitespace
-            [[ -n "$tool" ]] && CLAUDE_CMD+=(--allowedTools "$tool")
+            tool=$(echo "$tool" | xargs)
+            if [[ -n "$tool" ]]; then
+                CLAUDE_CMD+=(--allowedTools "$tool")
+            fi
         done
     fi
-
     if [[ -n "${CFG_DISALLOWED_TOOLS:-}" ]]; then
         IFS=',' read -ra dtools <<< "$CFG_DISALLOWED_TOOLS"
         for tool in "${dtools[@]}"; do
             tool=$(echo "$tool" | xargs)
-            [[ -n "$tool" ]] && CLAUDE_CMD+=(--disallowedTools "$tool")
+            if [[ -n "$tool" ]]; then
+                CLAUDE_CMD+=(--disallowedTools "$tool")
+            fi
         done
     fi
 
     # ── Execution limits ───────────────────────────────────────
-    [[ -n "${CFG_MAX_TURNS:-}" ]]      && CLAUDE_CMD+=(--max-turns "$CFG_MAX_TURNS")
-    [[ -n "${CFG_MAX_BUDGET_USD:-}" ]] && CLAUDE_CMD+=(--max-budget-usd "$CFG_MAX_BUDGET_USD")
+    if [[ -n "${CFG_MAX_TURNS:-}" ]]; then
+        CLAUDE_CMD+=(--max-turns "$CFG_MAX_TURNS")
+    fi
+    if [[ -n "${CFG_MAX_BUDGET_USD:-}" ]]; then
+        CLAUDE_CMD+=(--max-budget-usd "$CFG_MAX_BUDGET_USD")
+    fi
 
     # ── System prompt ──────────────────────────────────────────
-    # --system-prompt and --system-prompt-file are mutually exclusive
     if [[ -n "${CFG_SYSTEM_PROMPT:-}" ]]; then
         CLAUDE_CMD+=(--system-prompt "$CFG_SYSTEM_PROMPT")
     elif [[ -n "${CFG_SYSTEM_PROMPT_FILE:-}" ]]; then
         CLAUDE_CMD+=(--system-prompt-file "$CFG_SYSTEM_PROMPT_FILE")
     fi
-
     if [[ -n "${CFG_APPEND_SYSTEM_PROMPT:-}" ]]; then
         CLAUDE_CMD+=(--append-system-prompt "$CFG_APPEND_SYSTEM_PROMPT")
     fi
-
     if [[ -n "${CFG_APPEND_SYSTEM_PROMPT_FILE:-}" ]]; then
         CLAUDE_CMD+=(--append-system-prompt-file "$CFG_APPEND_SYSTEM_PROMPT_FILE")
     fi
 
     # ── Session ────────────────────────────────────────────────
-    [[ -n "${CFG_RESUME:-}" ]]     && CLAUDE_CMD+=(--resume "$CFG_RESUME")
-    [[ -n "${CFG_SESSION_ID:-}" ]] && CLAUDE_CMD+=(--session-id "$CFG_SESSION_ID")
-    [[ "${CFG_CONTINUE:-}" == "true" ]] && CLAUDE_CMD+=(--continue)
-    [[ "${CFG_FORK_SESSION:-}" == "true" ]] && CLAUDE_CMD+=(--fork-session)
-    [[ "${CFG_NO_SESSION_PERSISTENCE:-}" == "true" ]] && CLAUDE_CMD+=(--no-session-persistence)
-    [[ -n "${CFG_SESSION_NAME:-}" ]] && CLAUDE_CMD+=(--name "$CFG_SESSION_NAME")
+    if [[ -n "${CFG_RESUME:-}" ]]; then
+        CLAUDE_CMD+=(--resume "$CFG_RESUME")
+    fi
+    if [[ -n "${CFG_SESSION_ID:-}" ]]; then
+        CLAUDE_CMD+=(--session-id "$CFG_SESSION_ID")
+    fi
+    if [[ "${CFG_CONTINUE:-}" == "true" ]]; then
+        CLAUDE_CMD+=(--continue)
+    fi
+    if [[ "${CFG_FORK_SESSION:-}" == "true" ]]; then
+        CLAUDE_CMD+=(--fork-session)
+    fi
+    if [[ "${CFG_NO_SESSION_PERSISTENCE:-}" == "true" ]]; then
+        CLAUDE_CMD+=(--no-session-persistence)
+    fi
+    if [[ -n "${CFG_SESSION_NAME:-}" ]]; then
+        CLAUDE_CMD+=(--name "$CFG_SESSION_NAME")
+    fi
 
     # ── MCP ────────────────────────────────────────────────────
-    [[ -n "${CFG_MCP_CONFIG:-}" ]] && CLAUDE_CMD+=(--mcp-config "$CFG_MCP_CONFIG")
+    if [[ -n "${CFG_MCP_CONFIG:-}" ]]; then
+        CLAUDE_CMD+=(--mcp-config "$CFG_MCP_CONFIG")
+    fi
 
     # ── Working directories ────────────────────────────────────
     if [[ -n "${CFG_ADD_DIRS:-}" ]]; then
         IFS=',' read -ra dirs <<< "$CFG_ADD_DIRS"
         for dir in "${dirs[@]}"; do
             dir=$(echo "$dir" | xargs)
-            [[ -n "$dir" ]] && CLAUDE_CMD+=(--add-dir "$dir")
+            if [[ -n "$dir" ]]; then
+                CLAUDE_CMD+=(--add-dir "$dir")
+            fi
         done
     fi
 
     # ── Settings ───────────────────────────────────────────────
-    [[ -n "${CFG_SETTINGS:-}" ]] && CLAUDE_CMD+=(--settings "$CFG_SETTINGS")
+    if [[ -n "${CFG_SETTINGS:-}" ]]; then
+        CLAUDE_CMD+=(--settings "$CFG_SETTINGS")
+    fi
 
     # ── Debug ──────────────────────────────────────────────────
-    [[ "${CFG_VERBOSE:-}" == "true" ]] && CLAUDE_CMD+=(--verbose)
-    [[ -n "${CFG_DEBUG:-}" ]] && CLAUDE_CMD+=(--debug "$CFG_DEBUG")
+    if [[ "${CFG_VERBOSE:-}" == "true" ]]; then
+        CLAUDE_CMD+=(--verbose)
+    fi
+    if [[ -n "${CFG_DEBUG:-}" ]]; then
+        CLAUDE_CMD+=(--debug "$CFG_DEBUG")
+    fi
 }
 
 # Execute claude with the resolved config.

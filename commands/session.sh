@@ -21,7 +21,7 @@ cmd_session() {
             cmd_session_help
             ;;
         *)
-            die "Unknown session command: $subcmd. Use 'claude-agent session help' for usage."
+            die "Unknown session command: $subcmd. Use 'claude-agent session --help' for usage."
             ;;
     esac
 }

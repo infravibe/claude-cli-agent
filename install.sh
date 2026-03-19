@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # install.sh - One-command installer for claude-agent
-# Usage: curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/install.sh | bash
+# Usage: curl -fsSL https://raw.githubusercontent.com/infravibe/claude-cli-agent/main/install.sh | bash
 set -euo pipefail
 
-REPO_URL="https://raw.githubusercontent.com/akash/claude-cli-agent/main"
+REPO_URL="https://raw.githubusercontent.com/infravibe/claude-cli-agent/main"
 VERSION="2.0.0"
 
 # Colors

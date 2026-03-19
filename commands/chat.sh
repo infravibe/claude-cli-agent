@@ -33,7 +33,7 @@ cmd_chat() {
                 break
                 ;;
             -*)
-                die "Unknown flag for 'chat': $1"
+                die "Unknown flag for 'chat': $1. Use 'claude-agent chat --help' for usage."
                 ;;
             *)
                 positional+=("$1")

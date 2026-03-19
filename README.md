@@ -6,7 +6,7 @@ Production-grade, non-interactive CLI wrapper for [Claude Code](https://docs.ant
 
 ```bash
 # On any Ubuntu/Debian Docker container (or local machine)
-curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/infravibe/claude-cli-agent/main/install.sh | bash
 ```
 
 Installs Node.js (if missing), Claude Code CLI, pre-accepts onboarding, and sets up `claude-agent`.
@@ -228,7 +228,7 @@ FROM ubuntu:22.04
 # ... your setup ...
 
 # One line to install claude-agent
-RUN curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/install.sh | bash
+RUN curl -fsSL https://raw.githubusercontent.com/infravibe/claude-cli-agent/main/install.sh | bash
 ```
 
 ## Environment Variables
@@ -262,7 +262,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/ins
   env:
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   run: |
-    curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/infravibe/claude-cli-agent/main/install.sh | bash
     git diff origin/main...HEAD | claude-agent run "review this diff for bugs and security issues"
 ```
 
@@ -273,7 +273,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/ins
   env:
     ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
   run: |
-    curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/install.sh | bash
+    curl -fsSL https://raw.githubusercontent.com/infravibe/claude-cli-agent/main/install.sh | bash
     claude-agent --max-budget 5.00 cowork "Fix all failing tests and linting errors. Verify everything passes."
 ```
 
@@ -283,7 +283,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/ins
 code-review:
   image: node:20
   script:
-    - curl -fsSL https://raw.githubusercontent.com/akash/claude-cli-agent/main/install.sh | bash
+    - curl -fsSL https://raw.githubusercontent.com/infravibe/claude-cli-agent/main/install.sh | bash
     - git diff origin/main...HEAD | claude-agent run "review this diff"
   variables:
     ANTHROPIC_API_KEY: $ANTHROPIC_API_KEY
